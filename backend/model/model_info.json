@@ -1,0 +1,111 @@
+{
+  "best_model_name": "Random Forest",
+  "features": [
+    "RevolvingUtilizationOfUnsecuredLines",
+    "age",
+    "NumberOfTime30-59DaysPastDueNotWorse",
+    "DebtRatio",
+    "MonthlyIncome",
+    "NumberOfOpenCreditLinesAndLoans",
+    "NumberOfTimes90DaysLate",
+    "NumberRealEstateLoansOrLines",
+    "NumberOfTime60-89DaysPastDueNotWorse",
+    "NumberOfDependents",
+    "DebtToIncome",
+    "TotalPastDue",
+    "IncomePerDependent",
+    "CreditLinesPerAge"
+  ],
+  "metrics": {
+    "Logistic Regression": {
+      "accuracy": 0.8015,
+      "precision": 0.2169,
+      "recall": 0.7517,
+      "f1_score": 0.3367,
+      "roc_auc": 0.8596
+    },
+    "Decision Tree": {
+      "accuracy": 0.7849,
+      "precision": 0.2021,
+      "recall": 0.7498,
+      "f1_score": 0.3184,
+      "roc_auc": 0.8456
+    },
+    "Random Forest": {
+      "accuracy": 0.8245,
+      "precision": 0.2391,
+      "recall": 0.7423,
+      "f1_score": 0.3617,
+      "roc_auc": 0.8624
+    }
+  },
+  "best_metrics": {
+    "accuracy": 0.8245,
+    "precision": 0.2391,
+    "recall": 0.7423,
+    "f1_score": 0.3617,
+    "roc_auc": 0.8624
+  },
+  "classification_report": "              precision    recall  f1-score   support\n\nCreditworthy       0.98      0.83      0.90     27876\nDefault Risk       0.24      0.74      0.36      2002\n\n    accuracy                           0.82     29878\n   macro avg       0.61      0.79      0.63     29878\nweighted avg       0.93      0.82      0.86     29878\n",
+  "feature_importance": [
+    {
+      "feature": "RevolvingUtilizationOfUnsecuredLines",
+      "importance": 0.2664143478606204
+    },
+    {
+      "feature": "TotalPastDue",
+      "importance": 0.26255634556869045
+    },
+    {
+      "feature": "NumberOfTimes90DaysLate",
+      "importance": 0.10193745877597378
+    },
+    {
+      "feature": "NumberOfTime30-59DaysPastDueNotWorse",
+      "importance": 0.10170348744099628
+    },
+    {
+      "feature": "age",
+      "importance": 0.05196048868810012
+    },
+    {
+      "feature": "NumberOfTime60-89DaysPastDueNotWorse",
+      "importance": 0.046569967186893345
+    },
+    {
+      "feature": "NumberOfOpenCreditLinesAndLoans",
+      "importance": 0.03930216098472428
+    },
+    {
+      "feature": "NumberRealEstateLoansOrLines",
+      "importance": 0.032947908283124806
+    },
+    {
+      "feature": "DebtRatio",
+      "importance": 0.023026329934771123
+    },
+    {
+      "feature": "CreditLinesPerAge",
+      "importance": 0.020032487165939746
+    },
+    {
+      "feature": "DebtToIncome",
+      "importance": 0.01831972254828774
+    },
+    {
+      "feature": "MonthlyIncome",
+      "importance": 0.016576515341935716
+    },
+    {
+      "feature": "IncomePerDependent",
+      "importance": 0.013105555399849476
+    },
+    {
+      "feature": "NumberOfDependents",
+      "importance": 0.005547224820092801
+    }
+  ],
+  "target_meaning": "0 = Creditworthy (low default risk), 1 = Not Creditworthy (high default risk)",
+  "train_rows": 119512,
+  "test_rows": 29878
+}

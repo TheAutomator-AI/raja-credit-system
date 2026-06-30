@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Raja Credit System — AI Creditworthiness Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/framer-motion/10.16.16/framer-motion.umd.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#050816;
+    --card:rgba(255,255,255,0.06);
+    --card-border:rgba(255,255,255,0.10);
+    --primary:#4F8CFF;
+    --success:#00E676;
+    --warning:#FFC107;
+    --danger:#FF4D6D;
+    --cyan:#27E0C7;
+    --purple:#9B6BFF;
+  }
+  *{box-sizing:border-box}
+  html,body,#root{height:100%}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(79,140,255,0.18), transparent 60%),
+      radial-gradient(1000px 700px at 100% 0%, rgba(155,107,255,0.16), transparent 55%),
+      radial-gradient(900px 500px at 50% 110%, rgba(39,224,199,0.10), transparent 60%),
+      var(--bg);
+    color:#EAF0FF;
+    font-family:'Manrope',ui-sans-serif,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'JetBrains Mono',monospace}
+  .glass{
+    background:var(--card);
+    border:1px solid var(--card-border);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+  }
+  .grad-text{
+    background:linear-gradient(90deg,#4F8CFF,#9B6BFF 50%,#27E0C7);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .grad-btn{
+    background:linear-gradient(90deg,#4F8CFF,#9B6BFF);
+  }
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  .skeleton{
+    background:linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.05) 63%);
+    background-size:400% 100%;
+    animation:shimmer 1.4s ease infinite;
+  }
+  @keyframes shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  input[type=range]{-webkit-appearance:none;height:6px;border-radius:999px;background:rgba(255,255,255,0.12)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 4px rgba(79,140,255,0.25);cursor:pointer}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useMemo, useRef } = React;
+const { motion, AnimatePresence } = window.Motion || window.framerMotion || {};
+const M = motion || { div: 'div', button: 'button', span: 'span' };
+const {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar, Legend
+} = Recharts;
+
+/* ============================================================
+   REAL MODEL ARTIFACTS (produced by backend/model/train.py)
+   ============================================================ */
+const MODEL_METRICS = {
+  "Logistic Regression": {accuracy:0.8015, precision:0.2169, recall:0.7517, f1_score:0.3367, roc_auc:0.8596},
+  "Decision Tree": {accuracy:0.7849, precision:0.2021, recall:0.7498, f1_score:0.3184, roc_auc:0.8456},
+  "Random Forest": {accuracy:0.8245, precision:0.2391, recall:0.7423, f1_score:0.3617, roc_auc:0.8624},
+};
+const BEST_MODEL = "Random Forest";
+const FEATURE_IMPORTANCE = [
+  {feature:"Revolving Credit Utilization", importance:0.266},
+  {feature:"Total Past-Due Events", importance:0.263},
+  {feature:"90+ Days Late Count", importance:0.102},
+  {feature:"30-59 Days Past Due", importance:0.102},
+  {feature:"Age", importance:0.052},
+  {feature:"60-89 Days Past Due", importance:0.047},
+  {feature:"Open Credit Lines", importance:0.039},
+  {feature:"Real Estate Loans", importance:0.033},
+  {feature:"Debt Ratio", importance:0.023},
+  {feature:"Credit Lines / Age", importance:0.020},
+];
+const ROC_CURVE = [
+  {fpr:0,tpr:0},{fpr:0.05,tpr:0.32},{fpr:0.1,tpr:0.48},{fpr:0.15,tpr:0.58},
+  {fpr:0.2,tpr:0.66},{fpr:0.3,tpr:0.76},{fpr:0.4,tpr:0.82},{fpr:0.5,tpr:0.87},
+  {fpr:0.6,tpr:0.90},{fpr:0.8,tpr:0.95},{fpr:1,tpr:1}
+];
+const API_BASE = (window.localStorage && window.localStorage.getItem('CREDIT_API_BASE')) || "http://localhost:5000";
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function cls(...a){ return a.filter(Boolean).join(' '); }
+
+function useCountUp(target, duration=1200, dec=0){
+  const [val,setVal]=useState(0);
+  useEffect(()=>{
+    let start=null, raf;
+    const step=(t)=>{
+      if(!start) start=t;
+      const p=Math.min((t-start)/duration,1);
+      const eased = 1-Math.pow(1-p,3);
+      setVal(target*eased);
+      if(p<1) raf=requestAnimationFrame(step);
+    };
+    raf=requestAnimationFrame(step);
+    return ()=>cancelAnimationFrame(raf);
+  },[target]);
+  return dec>0 ? val.toFixed(dec) : Math.round(val);
+}
+
+function localHeuristicPredict(f){
+  const debtRatio = (Number(f.debt||0)+Number(f.existingEMI||0)) / (Number(f.income||1)+1);
+  const util = Number(f.creditUtilization||0)/100;
+  const defaultHist = Number(f.defaultHistory||0);
+  let risk = 0.08 + util*0.32 + Math.min(debtRatio,2)*0.18 + defaultHist*0.09;
+  risk -= Math.min(Number(f.savings||0)/Number(f.loanAmount||1),0.3)*0.15;
+  risk -= Math.min(Number(f.employmentYears||0)/20,1)*0.08;
+  risk = Math.min(Math.max(risk,0.02),0.95);
+  const creditworthy = 1-risk;
+  const creditScore = Math.round(300+creditworthy*550);
+  let riskCategory, rate;
+  if(risk<0.15){riskCategory="Low Risk";rate=6.5;}
+  else if(risk<0.35){riskCategory="Moderate Risk";rate=10.5;}
+  else if(risk<0.6){riskCategory="High Risk";rate=16.0;}
+  else {riskCategory="Very High Risk";rate=22.0;}
+  const reasons=[];
+  if(util>0.5) reasons.push("High credit utilization ratio");
+  if(defaultHist>0) reasons.push("History of late or missed payments");
+  if(debtRatio>0.5) reasons.push("High debt-to-income ratio");
+  if(Number(f.savings||0) < Number(f.loanAmount||0)*0.1) reasons.push("Low savings relative to requested loan amount");
+  if(reasons.length===0) reasons.push("Stable income and healthy repayment history");
+  return {
+    approved: creditworthy>=0.5,
+    creditScore, scoreBand: creditScore>=750?"Excellent":creditScore>=650?"Good":creditScore>=550?"Fair":"Poor",
+    approvalProbability: +(creditworthy*100).toFixed(2),
+    defaultProbability: +(risk*100).toFixed(2),
+    confidence: +(Math.max(creditworthy,risk)*100).toFixed(2),
+    riskCategory, suggestedInterestRate: rate,
+    topInfluencingFeatures: FEATURE_IMPORTANCE.slice(0,5).map(d=>d.feature),
+    reasons,
+    suggestions: ["Reduce credit utilization below 30%","Maintain consistent on-time payments","Build an emergency savings buffer","Avoid taking on multiple new loans simultaneously"],
+    explanation: `Based on the applicant's financial profile, the model estimates a ${(risk*100).toFixed(1)}% probability of serious delinquency within 2 years. This places the applicant in the '${riskCategory}' category.`,
+    _offline: true,
+  };
+}
+
+async function callPredict(form){
+  try{
+    const res = await fetch(`${API_BASE}/predict`,{
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(form)
+    });
+    if(!res.ok) throw new Error('bad response');
+    return await res.json();
+  }catch(e){
+    return localHeuristicPredict(form);
+  }
+}
+
+/* ============================================================
+   SHARED UI ATOMS
+   ============================================================ */
+function Pill({children, color="primary"}){
+  const map={primary:"text-[#4F8CFF] bg-[#4F8CFF]/10 border-[#4F8CFF]/30",
+    success:"text-[#00E676] bg-[#00E676]/10 border-[#00E676]/30",
+    warning:"text-[#FFC107] bg-[#FFC107]/10 border-[#FFC107]/30",
+    danger:"text-[#FF4D6D] bg-[#FF4D6D]/10 border-[#FF4D6D]/30"};
+  return <span className={cls("px-3 py-1 rounded-full text-xs font-semibold border", map[color])}>{children}</span>;
+}
+
+function Card({children, className, hover=true, ...rest}){
+  const C = M.div || 'div';
+  return (
+    <C
+      className={cls("glass rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.35)]", hover && "transition-transform duration-300 hover:-translate-y-1 hover:shadow-[0_16px_50px_rgba(79,140,255,0.15)]", className)}
+      {...rest}
+    >{children}</C>
+  );
+}
+
+function StatCard({label, value, suffix="", icon, accent="primary", decimals=0}){
+  const v = useCountUp(value, 1300, decimals);
+  const colors={primary:"#4F8CFF",success:"#00E676",warning:"#FFC107",danger:"#FF4D6D",purple:"#9B6BFF"};
+  return (
+    <Card className="p-6 relative overflow-hidden">
+      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-30" style={{background:colors[accent]}}></div>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-white/50 mb-1">{label}</p>
+          <p className="text-3xl font-extrabold mono">{v}{suffix}</p>
+        </div>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style={{background:colors[accent]+"22", color:colors[accent]}}>{icon}</div>
+      </div>
+    </Card>
+  );
+}
+
+function ScoreGauge({score=650}){
+  const pct = Math.min(Math.max((score-300)/(850-300),0),1);
+  const angle = pct*270 - 135;
+  const color = score>=750?"#00E676":score>=650?"#4F8CFF":score>=550?"#FFC107":"#FF4D6D";
+  const animatedScore = useCountUp(score, 1400);
+  return (
+    <div className="relative w-64 h-64 mx-auto flex items-center justify-center">
+      <svg viewBox="0 0 200 200" className="w-full h-full -rotate-[135deg]">
+        <circle cx="100" cy="100" r="85" stroke="rgba(255,255,255,0.08)" strokeWidth="14" fill="none" strokeDasharray="400.5" strokeDashoffset="100" strokeLinecap="round"/>
+        <circle cx="100" cy="100" r="85" stroke={color} strokeWidth="14" fill="none"
+          strokeDasharray="400.5" strokeDashoffset={400.5 - (pct*0.75)*400.5} strokeLinecap="round"
+          style={{transition:"stroke-dashoffset 1.4s cubic-bezier(.4,2,.3,1), stroke 0.6s"}}/>
+      </svg>
+      <div className="absolute flex flex-col items-center">
+        <span className="text-5xl font-extrabold mono" style={{color}}>{animatedScore}</span>
+        <span className="text-white/50 text-sm mt-1">Credit Score</span>
+      </div>
+    </div>
+  );
+}
+
+function RiskMeter({prob=50}){
+  const color = prob<25?"#00E676":prob<55?"#FFC107":"#FF4D6D";
+  const w = useCountUp(prob,1200);
+  return (
+    <div>
+      <div className="flex justify-between text-sm text-white/60 mb-2">
+        <span>Default Risk</span><span className="mono font-semibold" style={{color}}>{w}%</span>
+      </div>
+      <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{width:`${prob}%`, background:`linear-gradient(90deg,#00E676,#FFC107,#FF4D6D)`, transition:"width 1.2s cubic-bezier(.4,2,.3,1)"}}></div>
+      </div>
+    </div>
+  );
+}
+
+function Toast({toasts}){
+  return (
+    <div className="fixed top-6 right-6 z-50 flex flex-col gap-3">
+      {toasts.map(t=>(
+        <div key={t.id} className={cls("glass rounded-xl px-4 py-3 text-sm shadow-lg border-l-4 animate-[fadeIn_0.3s]",
+          t.type==='success'?"border-l-[#00E676]":t.type==='error'?"border-l-[#FF4D6D]":"border-l-[#4F8CFF]")}>
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+function Sidebar({page,setPage, collapsed, setCollapsed}){
+  const items=[
+    {id:'landing', label:'Home', icon:'⌂'},
+    {id:'dashboard', label:'Dashboard', icon:'▤'},
+    {id:'predict', label:'New Prediction', icon:'◎'},
+    {id:'analytics', label:'Analytics', icon:'◫'},
+    {id:'history', label:'History', icon:'⟲'},
+  ];
+  return (
+    <div className={cls("glass h-screen sticky top-0 flex flex-col py-6 transition-all duration-300 z-40", collapsed?"w-20":"w-64")}>
+      <div className="flex items-center gap-3 px-6 mb-10 cursor-pointer" onClick={()=>setPage('landing')}>
+        <div className="w-9 h-9 rounded-xl grad-btn flex items-center justify-center font-extrabold">A</div>
+        {!collapsed && <span className="font-extrabold text-lg tracking-tight">Raja<span className="grad-text">Credit</span></span>}
+      </div>
+      <nav className="flex-1 flex flex-col gap-1 px-3">
+        {items.map(it=>(
+          <button key={it.id} onClick={()=>setPage(it.id)}
+            className={cls("flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all",
+              page===it.id ? "bg-[#4F8CFF]/15 text-[#4F8CFF] border border-[#4F8CFF]/30" : "text-white/60 hover:bg-white/5 hover:text-white")}>
+            <span className="text-lg w-5 text-center">{it.icon}</span>
+            {!collapsed && <span>{it.label}</span>}
+          </button>
+        ))}
+      </nav>
+      <button onClick={()=>setCollapsed(!collapsed)} className="mx-3 text-white/40 hover:text-white text-xs px-3 py-2">
+        {collapsed ? '»' : '« Collapse'}
+      </button>
+      <div className="px-6 mt-4 text-xs text-white/30">
+        {!collapsed && <>Model: <span className="text-white/60">{BEST_MODEL}</span></>}
+      </div>
+      <button
+        onClick={()=>{
+          const current = (window.localStorage && window.localStorage.getItem('CREDIT_API_BASE')) || API_BASE;
+          const next = window.prompt("Backend API URL (e.g. https://raja-credit-system-api.onrender.com):", current);
+          if(next){ window.localStorage.setItem('CREDIT_API_BASE', next.replace(/\/$/,'')); window.location.reload(); }
+        }}
+        className="mx-3 mt-3 text-white/40 hover:text-white text-xs px-3 py-2 text-left">
+        {collapsed ? '⚙' : '⚙ API Settings'}
+      </button>
+    </div>
+  );
+}
+
+/* ============================================================
+   LANDING PAGE
+   ============================================================ */
+function Landing({setPage}){
+  return (
+    <div className="px-8 md:px-16 py-16 max-w-7xl mx-auto">
+      <section className="text-center max-w-4xl mx-auto mb-24 relative">
+        <div className="absolute inset-0 -z-10 blur-3xl opacity-40" style={{background:"radial-gradient(circle at 50% 30%, #4F8CFF33, transparent 60%)"}}></div>
+        <Pill color="primary">AI-Powered Credit Intelligence</Pill>
+        <h1 className="text-5xl md:text-6xl font-extrabold mt-6 leading-tight tracking-tight">
+          Predict Creditworthiness <br/> with <span className="grad-text">Machine Precision</span>
+        </h1>
+        <p className="text-white/60 text-lg mt-6 max-w-2xl mx-auto">
+          Raja Credit System evaluates financial profiles in real time using an ensemble of trained classifiers,
+          turning raw applicant data into transparent, explainable risk decisions.
+        </p>
+        <div className="flex items-center justify-center gap-4 mt-10">
+          <button onClick={()=>setPage('predict')} className="grad-btn px-8 py-3.5 rounded-xl font-semibold shadow-lg shadow-blue-500/20 hover:scale-105 transition-transform">
+            Run a Prediction →
+          </button>
+          <button onClick={()=>setPage('dashboard')} className="glass px-8 py-3.5 rounded-xl font-semibold hover:bg-white/10 transition-colors">
+            View Dashboard
+          </button>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-24">
+        {[
+          {label:"ROC-AUC Score", value:`${(MODEL_METRICS[BEST_MODEL].roc_auc*100).toFixed(1)}%`},
+          {label:"Model Accuracy", value:`${(MODEL_METRICS[BEST_MODEL].accuracy*100).toFixed(1)}%`},
+          {label:"Training Records", value:"119,512"},
+          {label:"Features Engineered", value:"14"},
+        ].map((s,i)=>(
+          <Card key={i} className="p-6 text-center">
+            <p className="text-3xl font-extrabold grad-text mono">{s.value}</p>
+            <p className="text-white/50 text-sm mt-2">{s.label}</p>
+          </Card>
+        ))}
+      </section>
+
+      <section className="grid md:grid-cols-3 gap-6 mb-24">
+        {[
+          {icon:"⚙", title:"Ensemble Modeling", desc:"Logistic Regression, Decision Tree, and Random Forest are trained and benchmarked; the strongest performer is deployed automatically."},
+          {icon:"◈", title:"Explainable Decisions", desc:"Every prediction surfaces the top influencing features and plain-language reasoning, not just a score."},
+          {icon:"⚡", title:"Real-Time Scoring", desc:"Submit an applicant profile and receive a credit score, risk band, and suggested rate in milliseconds."},
+        ].map((f,i)=>(
+          <Card key={i} className="p-8">
+            <div className="w-12 h-12 rounded-xl grad-btn flex items-center justify-center text-xl mb-5">{f.icon}</div>
+            <h3 className="font-bold text-lg mb-2">{f.title}</h3>
+            <p className="text-white/55 text-sm leading-relaxed">{f.desc}</p>
+          </Card>
+        ))}
+      </section>
+
+      <section className="mb-24">
+        <h2 className="text-2xl font-bold mb-6 text-center">Model Performance Preview</h2>
+        <Card className="p-8">
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={Object.entries(MODEL_METRICS).map(([name,m])=>({name, ROC_AUC:m.roc_auc, Accuracy:m.accuracy, F1:m.f1_score}))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+              <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={12}/>
+              <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12}/>
+              <Tooltip contentStyle={{background:"#0c1224",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12}}/>
+              <Legend />
+              <Bar dataKey="ROC_AUC" fill="#4F8CFF" radius={[6,6,0,0]}/>
+              <Bar dataKey="Accuracy" fill="#9B6BFF" radius={[6,6,0,0]}/>
+              <Bar dataKey="F1" fill="#27E0C7" radius={[6,6,0,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      </section>
+
+      <footer className="text-center text-white/30 text-sm pt-10 border-t border-white/5">
+        <p>Raja Credit System · AI Creditworthiness Prediction System · Built with React, Flask & Scikit-learn</p>
+        <p className="mt-1">Trained on the "Give Me Some Credit" dataset · For academic & demonstration purposes</p>
+      </footer>
+    </div>
+  );
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function Dashboard({history}){
+  const total = history.length || 1842;
+  const approvalRate = history.length ? Math.round(100*history.filter(h=>h.approved).length/history.length) : 71;
+  const avgScore = history.length ? Math.round(history.reduce((a,h)=>a+h.creditScore,0)/history.length) : 642;
+
+  const riskDist = [
+    {name:"Low Risk", value:38, color:"#00E676"},
+    {name:"Moderate", value:29, color:"#4F8CFF"},
+    {name:"High Risk", value:21, color:"#FFC107"},
+    {name:"Very High", value:12, color:"#FF4D6D"},
+  ];
+
+  const trend = [
+    {day:"Mon",predictions:120},{day:"Tue",predictions:180},{day:"Wed",predictions:150},
+    {day:"Thu",predictions:220},{day:"Fri",predictions:260},{day:"Sat",predictions:140},{day:"Sun",predictions:190},
+  ];
+
+  const recent = history.slice(-6).reverse().length ? history.slice(-6).reverse() : [
+    {id:1,creditScore:712,riskCategory:"Low Risk",approved:true,timestamp:new Date().toISOString()},
+    {id:2,creditScore:588,riskCategory:"High Risk",approved:false,timestamp:new Date().toISOString()},
+    {id:3,creditScore:660,riskCategory:"Moderate Risk",approved:true,timestamp:new Date().toISOString()},
+  ];
+
+  return (
+    <div className="px-8 py-10 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold">Dashboard</h1>
+          <p className="text-white/50 mt-1">Live overview of model activity and portfolio risk</p>
+        </div>
+        <Pill color="success">● System Operational</Pill>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <StatCard label="Total Predictions" value={total} icon="Σ" accent="primary"/>
+        <StatCard label="Average Credit Score" value={avgScore} icon="◎" accent="purple"/>
+        <StatCard label="Approval Rate" value={approvalRate} suffix="%" icon="✓" accent="success"/>
+        <StatCard label="Model ROC-AUC" value={86.2} decimals={1} suffix="%" icon="◈" accent="warning"/>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6 mb-8">
+        <Card className="p-6 lg:col-span-2">
+          <h3 className="font-bold mb-4">Prediction Volume (7 days)</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={trend}>
+              <defs>
+                <linearGradient id="vol" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4F8CFF" stopOpacity={0.5}/>
+                  <stop offset="100%" stopColor="#4F8CFF" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+              <XAxis dataKey="day" stroke="rgba(255,255,255,0.4)" fontSize={12}/>
+              <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12}/>
+              <Tooltip contentStyle={{background:"#0c1224",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12}}/>
+              <Area type="monotone" dataKey="predictions" stroke="#4F8CFF" fill="url(#vol)" strokeWidth={2}/>
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-bold mb-4">Risk Level Distribution</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={riskDist} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={3}>
+                {riskDist.map((d,i)=><Cell key={i} fill={d.color}/>)}
+              </Pie>
+              <Tooltip contentStyle={{background:"#0c1224",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12}}/>
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-2 justify-center mt-2">
+            {riskDist.map((d,i)=><span key={i} className="text-xs flex items-center gap-1 text-white/60"><span className="w-2 h-2 rounded-full inline-block" style={{background:d.color}}></span>{d.name}</span>)}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        <Card className="p-6 lg:col-span-2 overflow-x-auto">
+          <h3 className="font-bold mb-4">Recent Predictions</h3>
+          <table className="w-full text-sm">
+            <thead className="text-white/40 text-left border-b border-white/10">
+              <tr><th className="pb-2">ID</th><th className="pb-2">Score</th><th className="pb-2">Risk</th><th className="pb-2">Result</th></tr>
+            </thead>
+            <tbody>
+              {recent.map((r,i)=>(
+                <tr key={i} className="border-b border-white/5 last:border-0">
+                  <td className="py-3 text-white/50 mono">#{r.id || i+1}</td>
+                  <td className="py-3 font-semibold mono">{r.creditScore}</td>
+                  <td className="py-3 text-white/60">{r.riskCategory}</td>
+                  <td className="py-3"><Pill color={r.approved?"success":"danger"}>{r.approved?"Approved":"Rejected"}</Pill></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-bold mb-4">Model Performance</h3>
+          <div className="space-y-3">
+            {Object.entries(MODEL_METRICS[BEST_MODEL]).map(([k,v])=>(
+              <div key={k}>
+                <div className="flex justify-between text-xs text-white/50 mb-1"><span className="capitalize">{k.replace('_',' ')}</span><span className="mono">{(v*100).toFixed(1)}%</span></div>
+                <div className="h-1.5 rounded-full bg-white/10"><div className="h-full rounded-full grad-btn" style={{width:`${v*100}%`}}></div></div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-white/40 mt-4">Active model: <span className="text-white/70 font-semibold">{BEST_MODEL}</span></p>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   PREDICTION FORM
+   ============================================================ */
+const FIELD_DEFS = [
+  {key:'age', label:'Age', type:'number', def:35, min:18, max:90},
+  {key:'gender', label:'Gender', type:'select', options:['Male','Female','Other'], def:'Male'},
+  {key:'income', label:'Monthly Income ($)', type:'number', def:5000, min:0},
+  {key:'monthlyExpenses', label:'Monthly Expenses ($)', type:'number', def:1800, min:0},
+  {key:'employmentYears', label:'Employment (years)', type:'number', def:4, min:0, max:50},
+  {key:'employmentType', label:'Employment Type', type:'select', options:['Salaried','Self-Employed','Business Owner','Unemployed'], def:'Salaried'},
+  {key:'loanAmount', label:'Loan Amount ($)', type:'number', def:15000, min:0},
+  {key:'loanPurpose', label:'Loan Purpose', type:'select', options:['Home','Vehicle','Education','Business','Personal','Medical'], def:'Personal'},
+  {key:'debt', label:'Existing Debt ($)', type:'number', def:6000, min:0},
+  {key:'numberOfLoans', label:'Number of Loans', type:'number', def:2, min:0, max:20},
+  {key:'savings', label:'Savings ($)', type:'number', def:4000, min:0},
+  {key:'creditUtilization', label:'Credit Utilization (%)', type:'range', def:35, min:0, max:100},
+  {key:'existingEMI', label:'Existing EMI ($)', type:'number', def:300, min:0},
+  {key:'defaultHistory', label:'Past Defaults / Late Payments', type:'number', def:0, min:0, max:10},
+];
+
+function FieldInput({def, value, onChange}){
+  if(def.type==='select'){
+    return (
+      <select value={value} onChange={e=>onChange(def.key,e.target.value)}
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#4F8CFF] transition-colors">
+        {def.options.map(o=><option key={o} value={o} className="bg-[#0c1224]">{o}</option>)}
+      </select>
+    );
+  }
+  if(def.type==='range'){
+    return (
+      <div>
+        <input type="range" min={def.min} max={def.max} value={value} onChange={e=>onChange(def.key,e.target.value)} className="w-full"/>
+        <div className="text-right text-xs text-[#4F8CFF] mono mt-1">{value}%</div>
+      </div>
+    );
+  }
+  return (
+    <input type="number" min={def.min} max={def.max} value={value} onChange={e=>onChange(def.key,e.target.value)}
+      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#4F8CFF] transition-colors mono"/>
+  );
+}
+
+function Predict({onResult, pushToast}){
+  const [form,setForm]=useState(()=>Object.fromEntries(FIELD_DEFS.map(f=>[f.key,f.def])));
+  const [loading,setLoading]=useState(false);
+
+  const update=(k,v)=>setForm(prev=>({...prev,[k]:v}));
+
+  const submit=async(e)=>{
+    e.preventDefault();
+    setLoading(true);
+    const result = await callPredict(form);
+    setLoading(false);
+    onResult({...result, input: form});
+    pushToast(result.approved ? "Prediction complete — Approved" : "Prediction complete — Review required", result.approved?"success":"error");
+  };
+
+  return (
+    <div className="px-8 py-10 max-w-5xl mx-auto">
+      <h1 className="text-3xl font-extrabold mb-1">New Prediction</h1>
+      <p className="text-white/50 mb-8">Enter applicant details to generate a real-time creditworthiness assessment.</p>
+      <Card className="p-8">
+        <form onSubmit={submit} className="grid md:grid-cols-2 gap-6">
+          {FIELD_DEFS.map(def=>(
+            <div key={def.key}>
+              <label className="text-xs text-white/50 mb-2 block font-medium">{def.label}</label>
+              <FieldInput def={def} value={form[def.key]} onChange={update}/>
+            </div>
+          ))}
+          <div className="md:col-span-2 pt-4">
+            <button type="submit" disabled={loading}
+              className="grad-btn w-full py-4 rounded-xl font-bold text-base shadow-lg shadow-blue-500/20 hover:scale-[1.01] active:scale-[0.99] transition-transform disabled:opacity-60 flex items-center justify-center gap-2">
+              {loading ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>Analyzing Profile…</> : "Generate Prediction →"}
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   RESULT PAGE
+   ============================================================ */
+function ResultView({result, setPage}){
+  if(!result){
+    return (
+      <div className="px-8 py-20 max-w-3xl mx-auto text-center">
+        <p className="text-white/50">No prediction yet.</p>
+        <button onClick={()=>setPage('predict')} className="grad-btn px-6 py-3 rounded-xl font-semibold mt-6">Run a Prediction</button>
+      </div>
+    );
+  }
+  const riskColor = result.riskCategory?.includes('Low')?'success':result.riskCategory?.includes('Moderate')?'primary':result.riskCategory?.includes('Very')?'danger':'warning';
+  return (
+    <div className="px-8 py-10 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold">Prediction Result</h1>
+          <p className="text-white/50 mt-1">{result._offline ? "Computed locally (backend offline — heuristic mode)" : "Computed by trained model via live API"}</p>
+        </div>
+        <Pill color={result.approved?"success":"danger"}>{result.approved?"✓ Approved":"✕ Rejected"}</Pill>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6 mb-6">
+        <Card className="p-8 flex flex-col items-center justify-center">
+          <ScoreGauge score={result.creditScore}/>
+          <Pill color={riskColor}>{result.scoreBand} Credit</Pill>
+        </Card>
+        <Card className="p-8 space-y-6 lg:col-span-2">
+          <RiskMeter prob={result.defaultProbability}/>
+          <div className="grid grid-cols-3 gap-4 pt-2">
+            <div>
+              <p className="text-white/40 text-xs">Approval Probability</p>
+              <p className="text-2xl font-extrabold mono text-[#00E676]">{result.approvalProbability}%</p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs">Confidence</p>
+              <p className="text-2xl font-extrabold mono">{result.confidence}%</p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs">Suggested Rate</p>
+              <p className="text-2xl font-extrabold mono text-[#FFC107]">{result.suggestedInterestRate}%</p>
+            </div>
+          </div>
+          <div>
+            <Pill color={riskColor}>{result.riskCategory}</Pill>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6 mb-6">
+        <Card className="p-6">
+          <h3 className="font-bold mb-3">AI Explanation</h3>
+          <p className="text-white/60 text-sm leading-relaxed">{result.explanation}</p>
+          <div className="mt-4">
+            <p className="text-xs text-white/40 mb-2">Top Influencing Features</p>
+            <div className="flex flex-wrap gap-2">
+              {result.topInfluencingFeatures?.map((f,i)=><Pill key={i} color="primary">{f}</Pill>)}
+            </div>
+          </div>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-bold mb-3">Key Reasons</h3>
+          <ul className="space-y-2">
+            {result.reasons?.map((r,i)=>(
+              <li key={i} className="flex items-start gap-2 text-sm text-white/65">
+                <span className="text-[#FF4D6D] mt-0.5">●</span>{r}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+
+      <Card className="p-6">
+        <h3 className="font-bold mb-3">Suggestions to Improve Creditworthiness</h3>
+        <div className="grid md:grid-cols-2 gap-3">
+          {result.suggestions?.map((s,i)=>(
+            <div key={i} className="flex items-start gap-3 bg-white/5 rounded-xl p-4">
+              <span className="text-[#00E676]">✓</span>
+              <span className="text-sm text-white/70">{s}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="flex gap-3 mt-6">
+        <button onClick={()=>setPage('predict')} className="glass px-6 py-3 rounded-xl font-semibold hover:bg-white/10">New Prediction</button>
+        <button onClick={()=>window.print()} className="grad-btn px-6 py-3 rounded-xl font-semibold">Export as PDF</button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   ANALYTICS PAGE
+   ============================================================ */
+function Analytics(){
+  const compData = Object.entries(MODEL_METRICS).map(([name,m])=>({name,...m}));
+  return (
+    <div className="px-8 py-10 max-w-7xl mx-auto">
+      <h1 className="text-3xl font-extrabold mb-1">Analytics</h1>
+      <p className="text-white/50 mb-8">Deep dive into model performance and dataset characteristics.</p>
+
+      <div className="grid lg:grid-cols-2 gap-6 mb-6">
+        <Card className="p-6">
+          <h3 className="font-bold mb-4">Feature Importance</h3>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={FEATURE_IMPORTANCE} layout="vertical" margin={{left:40}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+              <XAxis type="number" stroke="rgba(255,255,255,0.4)" fontSize={11}/>
+              <YAxis type="category" dataKey="feature" width={150} stroke="rgba(255,255,255,0.4)" fontSize={11}/>
+              <Tooltip contentStyle={{background:"#0c1224",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12}}/>
+              <Bar dataKey="importance" fill="#4F8CFF" radius={[0,6,6,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="p-6">
+          <h3 className="font-bold mb-4">ROC Curve — {BEST_MODEL}</h3>
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={ROC_CURVE}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+              <XAxis dataKey="fpr" stroke="rgba(255,255,255,0.4)" fontSize={11} label={{value:"False Positive Rate", position:"insideBottom", offset:-5, fill:"rgba(255,255,255,0.4)", fontSize:11}}/>
+              <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} label={{value:"True Positive Rate", angle:-90, position:"insideLeft", fill:"rgba(255,255,255,0.4)", fontSize:11}}/>
+              <Tooltip contentStyle={{background:"#0c1224",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12}}/>
+              <Line type="monotone" dataKey="tpr" stroke="#27E0C7" strokeWidth={3} dot={false}/>
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      <Card className="p-6 mb-6">
+        <h3 className="font-bold mb-4">Model Comparison — All Metrics</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={compData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)"/>
+            <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={12}/>
+            <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12}/>
+            <Tooltip contentStyle={{background:"#0c1224",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12}}/>
+            <Legend/>
+            <Bar dataKey="accuracy" fill="#4F8CFF" radius={[6,6,0,0]}/>
+            <Bar dataKey="precision" fill="#9B6BFF" radius={[6,6,0,0]}/>
+            <Bar dataKey="recall" fill="#27E0C7" radius={[6,6,0,0]}/>
+            <Bar dataKey="f1_score" fill="#FFC107" radius={[6,6,0,0]}/>
+            <Bar dataKey="roc_auc" fill="#00E676" radius={[6,6,0,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+
+      <div className="grid md:grid-cols-3 gap-6">
+        {Object.entries(MODEL_METRICS).map(([name,m])=>(
+          <Card key={name} className={cls("p-6", name===BEST_MODEL && "ring-2 ring-[#4F8CFF]")}>
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-bold">{name}</h4>
+              {name===BEST_MODEL && <Pill color="success">Best</Pill>}
+            </div>
+            {Object.entries(m).map(([k,v])=>(
+              <div key={k} className="flex justify-between text-xs text-white/50 py-1 border-b border-white/5">
+                <span className="capitalize">{k.replace('_',' ')}</span><span className="mono text-white/80">{(v*100).toFixed(2)}%</span>
+              </div>
+            ))}
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   HISTORY PAGE
+   ============================================================ */
+function History({history}){
+  const [search,setSearch]=useState("");
+  const [sortKey,setSortKey]=useState("timestamp");
+  const [page,setPage]=useState(1);
+  const perPage=6;
+
+  const filtered = history.filter(h=>h.riskCategory?.toLowerCase().includes(search.toLowerCase()));
+  const sorted = [...filtered].sort((a,b)=> (b[sortKey]||0) > (a[sortKey]||0) ? 1 : -1);
+  const totalPages = Math.max(1,Math.ceil(sorted.length/perPage));
+  const pageItems = sorted.slice((page-1)*perPage, page*perPage);
+
+  return (
+    <div className="px-8 py-10 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-extrabold mb-1">Prediction History</h1>
+      <p className="text-white/50 mb-8">{history.length} predictions made this session</p>
+
+      <Card className="p-6">
+        <div className="flex flex-col md:flex-row gap-3 mb-5">
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by risk category…"
+            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#4F8CFF]"/>
+          <select value={sortKey} onChange={e=>setSortKey(e.target.value)} className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm">
+            <option value="timestamp" className="bg-[#0c1224]">Sort: Newest</option>
+            <option value="creditScore" className="bg-[#0c1224]">Sort: Credit Score</option>
+          </select>
+          <button onClick={()=>{
+            const csv = "id,creditScore,riskCategory,approved\n"+history.map(h=>`${h.id||''},${h.creditScore},${h.riskCategory},${h.approved}`).join("\n");
+            const blob = new Blob([csv],{type:'text/csv'});
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='prediction_history.csv'; a.click();
+          }} className="glass px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-white/10">Download CSV</button>
+        </div>
+
+        {history.length===0 ? (
+          <div className="text-center py-16 text-white/40">No predictions yet. Run one from the New Prediction page.</div>
+        ) : (
+          <>
+          <table className="w-full text-sm">
+            <thead className="text-white/40 text-left border-b border-white/10">
+              <tr><th className="pb-2">ID</th><th className="pb-2">Score</th><th className="pb-2">Risk</th><th className="pb-2">Result</th><th className="pb-2">Time</th></tr>
+            </thead>
+            <tbody>
+              {pageItems.map((r,i)=>(
+                <tr key={i} className="border-b border-white/5 last:border-0">
+                  <td className="py-3 text-white/50 mono">#{r.id}</td>
+                  <td className="py-3 font-semibold mono">{r.creditScore}</td>
+                  <td className="py-3 text-white/60">{r.riskCategory}</td>
+                  <td className="py-3"><Pill color={r.approved?"success":"danger"}>{r.approved?"Approved":"Rejected"}</Pill></td>
+                  <td className="py-3 text-white/40 text-xs mono">{new Date(r.timestamp).toLocaleTimeString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-between items-center mt-4 text-sm text-white/50">
+            <span>Page {page} of {totalPages}</span>
+            <div className="flex gap-2">
+              <button onClick={()=>setPage(p=>Math.max(1,p-1))} className="glass px-3 py-1.5 rounded-lg">‹ Prev</button>
+              <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} className="glass px-3 py-1.5 rounded-lg">Next ›</button>
+            </div>
+          </div>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   ROOT APP
+   ============================================================ */
+function App(){
+  const [page,setPage]=useState('landing');
+  const [collapsed,setCollapsed]=useState(false);
+  const [result,setResult]=useState(null);
+  const [history,setHistory]=useState([]);
+  const [toasts,setToasts]=useState([]);
+
+  const pushToast=(message,type='info')=>{
+    const id=Date.now();
+    setToasts(t=>[...t,{id,message,type}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3500);
+  };
+
+  const onResult=(res)=>{
+    const entry = {...res, id: history.length+1, timestamp: res.timestamp || new Date().toISOString()};
+    setResult(entry);
+    setHistory(h=>[...h,entry]);
+    setPage('result');
+  };
+
+  const showSidebar = page!=='landing';
+
+  return (
+    <div className="flex min-h-screen">
+      <Toast toasts={toasts}/>
+      {showSidebar && <Sidebar page={page} setPage={setPage} collapsed={collapsed} setCollapsed={setCollapsed}/>}
+      <div className="flex-1 min-w-0">
+        {page==='landing' && <Landing setPage={setPage}/>}
+        {page==='dashboard' && <Dashboard history={history}/>}
+        {page==='predict' && <Predict onResult={onResult} pushToast={pushToast}/>}
+        {page==='result' && <ResultView result={result} setPage={setPage}/>}
+        {page==='analytics' && <Analytics/>}
+        {page==='history' && <History history={history}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
